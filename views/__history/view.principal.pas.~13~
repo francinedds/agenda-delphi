@@ -1,0 +1,159 @@
+unit view.principal;
+
+interface
+
+uses
+  Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
+  Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.ComCtrls, RxCtrls, Vcl.ExtCtrls,
+  Vcl.Grids, Vcl.Samples.Calendar, Vcl.Buttons, Vcl.StdCtrls, System.ImageList,
+  Vcl.ImgList, FireDAC.Stan.Intf, FireDAC.Stan.Option, FireDAC.Stan.Error,
+  FireDAC.UI.Intf, FireDAC.Phys.Intf, FireDAC.Stan.Def, FireDAC.Stan.Pool,
+  FireDAC.Stan.Async, FireDAC.Phys, FireDAC.Phys.FB, FireDAC.Phys.FBDef,
+  FireDAC.VCLUI.Wait, FireDAC.Stan.Param, FireDAC.DatS, FireDAC.DApt.Intf,
+  FireDAC.DApt, Data.DB, FireDAC.Comp.DataSet, FireDAC.Comp.Client,
+  Vcl.WinXPickers;
+
+type
+  TViewPrincipal = class(TForm)
+    pnlBackground: TPanel;
+    pnlCalendar: TPanel;
+    Calendar: TCalendar;
+    pnlHeader: TPanel;
+    btnClose: TSpeedButton;
+    lblTitle: TLabel;
+    pnlBtnAdicionarEvento: TPanel;
+    btnAdicionarEvento: TSpeedButton;
+    FDConnection: TFDConnection;
+    FDQuery: TFDQuery;
+    FDQueryAGE_CODIGO: TIntegerField;
+    FDQueryAGE_TITULO: TStringField;
+    FDQueryAGE_DESCRICAO: TStringField;
+    FDQueryAGE_DATA: TDateField;
+    FDQueryAGE_HORA: TTimeField;
+    edtTitle: TEdit;
+    edtDescription: TEdit;
+    ListBoxDescription: TListBox;
+    lblTitleEdit: TLabel;
+    lblDescriptionEdt: TLabel;
+    lblEventosAgendados: TLabel;
+    lblTime: TLabel;
+    pnlDetail: TPanel;
+    edtTime: TEdit;
+    pnlFooter: TPanel;
+    lblCopy: TLabel;
+    lblEvento: TLabel;
+    lblDescricao: TLabel;
+    pnlBtnLimpar: TPanel;
+    lblLimpar: TSpeedButton;
+    ListBoxEvents: TListBox;
+    procedure btnCloseClick(Sender: TObject);
+    procedure btnAdicionarEventoClick(Sender: TObject);
+    procedure CalendarChange(Sender: TObject);
+    procedure edtTitleClick(Sender: TObject);
+    procedure edtDescriptionClick(Sender: TObject);
+    procedure edtTimeChange(Sender: TObject);
+    procedure lblLimparClick(Sender: TObject);
+  private
+    { Private declarations }
+    procedure LoadEvents(Date: TDate);
+    procedure AddEvent(Title, Description: string; EventDate: TDate);
+  public
+    { Public declarations }
+  end;
+
+var
+  ViewPrincipal: TViewPrincipal;
+
+implementation
+
+{$R *.dfm}
+
+procedure TViewPrincipal.AddEvent(Title, Description: string; EventDate: TDate);
+begin
+  FDQuery.SQL.Text := 'INSERT INTO Agenda (age_titulo, age_descricao, age_data, age_hora) ' +
+                      'VALUES (:age_titulo, :age_descricao, :age_data, :age_hora)';
+  FDQuery.ParamByName('age_titulo').AsString := Title;
+  FDQuery.ParamByName('age_descricao').AsString := Description;
+  FDQuery.ParamByName('age_data').AsDate := EventDate;
+  FDQuery.ParamByName('age_hora').AsString := edtTime.Text;
+  FDQuery.ExecSQL;
+end;
+
+procedure TViewPrincipal.btnAdicionarEventoClick(Sender: TObject);
+var
+  Title, Description: string;
+  EventDate: TDate;
+begin
+  // verifica se os campos não estão vazios
+  Title := edtTitle.Text;
+  Description := edtDescription.Text;
+  EventDate := Calendar.CalendarDate;
+
+  if (Title <> '') then
+  begin
+    // adicionar evento ao banco de dados
+    AddEvent(Title, Description, EventDate);
+    // carregar eventos novamente para a data selecionada
+    LoadEvents(EventDate);
+  end
+  else
+    ShowMessage('Por favor, insira um título para o evento.');
+end;
+
+procedure TViewPrincipal.btnCloseClick(Sender: TObject);
+begin
+  Application.Terminate;
+end;
+
+procedure TViewPrincipal.CalendarChange(Sender: TObject);
+begin
+  LoadEvents(Calendar.CalendarDate); // carregar eventos para a data selecionada
+end;
+
+procedure TViewPrincipal.edtDescriptionClick(Sender: TObject);
+begin // limpar o edt quando o usuário clicar no campo
+    if edtDescription.Text = 'Digite a descrição da sua tarefa...' then
+       edtDescription.Text := '';
+end;
+
+procedure TViewPrincipal.edtTimeChange(Sender: TObject);
+begin
+  if edtTitle.Text = '00:00:00' then
+     edtTitle.Text := '';
+end;
+
+procedure TViewPrincipal.edtTitleClick(Sender: TObject);
+begin
+  if edtTitle.Text = 'Digite o título do seu evento...' then
+     edtTitle.Text := '';
+end;
+
+procedure TViewPrincipal.lblLimparClick(Sender: TObject);
+begin // Limpar as duas listas de tarefas
+  ListBoxEvents.Items.Clear;
+  ListBoxDescription.Items.Clear;
+end;
+
+procedure TViewPrincipal.LoadEvents(Date: TDate);
+begin
+  // Limpar a lista de eventos
+  ListBoxEvents.Items.Clear;
+
+  // carregar os eventos para a data selecionada
+  FDQuery.SQL.Text := 'SELECT * FROM Agenda WHERE age_data = :age_data AND age_hora = :age_hora';
+  FDQuery.ParamByName('age_data').AsDate := Date;
+  FDQuery.ParamByName('age_hora').AsTime := StrToTime(edtTime.Text);
+  FDQuery.Open;
+
+  // exibir os eventos na ListBox
+  while not FDQuery.Eof do
+  begin
+    ListBoxEvents.Items.Add(FDQuery.FieldByName('age_titulo').AsString);
+    ListBoxEvents.Items.Add(FDQuery.FieldByName('age_data').AsString);
+    ListBoxEvents.Items.Add(FDQuery.FieldByName('age_hora').AsString);
+    ListBoxDescription.Items.Add(FDQuery.FieldByName('age_descricao').AsString);
+    FDQuery.Next;
+  end;
+end;
+
+end.
